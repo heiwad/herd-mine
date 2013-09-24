@@ -40,14 +40,6 @@ var facebookQueryBuilder = function ( token, user, target, fields) {
     queryString.access_token= token || getAuthToken();
     queryString.limit = 500;
 
-
-/*
-  //Add support for GZIP later. May improve data transfer rate
-    var headers = {};
-    headers.Connection = 'keep-alive';
-    headers['Accept-Encoding'] = 'gzip';
-    headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/29.0.1547.76 Safari/537.36';
-*/
     var options = {
 	uri: uri,
 	qs: queryString,
@@ -69,84 +61,129 @@ var requestHandler = function (error, response, body) {
 var handleFriends = function (friends) {
 
     if (friends) {
-	log(friends);
+	var output = '';
+	for (var friend in friends) output += friends[friend].name + ' : ' +friends[friend].id +'\n';
+	log(output);
 	save(friends,'friends');
 	console.log('Got %d friends', friends.length);
     }
 
 };
 
-var fetchFriends = function (user, token, cb) {
+var handlePosts = function (posts) {
+
+    if (posts) {
+	save(posts, 'posts');
+    }
+
+    var applications = {};
+    for (var i = 0; i < posts.length; i++) {
+	var post = posts[i];
+	if(post.hasOwnProperty('application')) {
+
+	    var app = post.application;
+
+	    if (applications.hasOwnProperty(app.id)) {
+
+		applications[app.id].count +=1;
+		applications[app.id].firstDate = post.created_time; /*fix this to do a comparison first*/
+
+	    } else {
+		applications[app.id] = {};
+		applications[app.id].name = app.name;
+		applications[app.id].id = app.id;
+		applications[app.id].count = 1;
+		applications[app.id].firstDate = post.created_time;
+		applications[app.id].lastDate = post.created_time;
+	    }
+	}
+    }
+
+    save(applications,'applications');
+};
+
+var fetchFriends = function (cb) {
 
     var target = 'friends';
-    var options = facebookQueryBuilder(token, user, target );
-    log('Getting friends for user ' + user );
-    save(options, 'options');
+    var token = getAuthToken();
+    var user = 'me';
 
-    var friends = [];
+    var options = facebookQueryBuilder(token, user, target );
+    pagedFacebookGet(options, cb);
+
+};
+
+var fetchPosts = function (cb, user, fields) {
+
+    user = user || 'me';
+    cb = cb || handlePosts;
+    fields = fields || 'application';
+
+    var target = 'posts';
+    var token = getAuthToken();
+    var options = facebookQueryBuilder(token, user, target, fields);
+    pagedFacebookGet(options, cb);
+
+};
+
+var pagedFacebookGet = function (options, cb, progresscb) {
+
+    var maxPages = 5;
+    var pageCount = 1;
+    log('Initiating paged fetch from facebook');
+    save(options, 'options');
+    var apiResults = [];
+
     function fetch_more (error, response, body) {
-	log('fetch_more invoked');
+
+
 	if (!error && response.statusCode == 200) {
-	    log('about to parse the server response');
+	    log('Page of data successfully retreived from API');
 	    try {
 
 		var parsedBody = JSON.parse(body);
-		var parsedURL = url.parse(parsedBody.paging.next);
-		var parsedQuery = qs.decode(parsedURL.query);
 
-		var stopDownloading = false;
-		var duplicates = false;
+		var page = parsedBody.data;
+		var hasNext = parsedBody.paging.hasOwnProperty('next');
 
-/*
-  //This isn't true. The facebook api filters results before returning so this may terminate things too early
-		if (parsedBody.data.length != parsedQuery.limit) {
-		    log('Got ' + parsedBody.data.length + ' records out of ' + parsedQuery.limit + ' limit. Stopping download');
-		    stopDownloading = true;
-		}
-*/
-		if (friends.length > 0 && friends[friends.length-1].id === parsedBody.data[parsedBody.data.length-1].id) {
-		    //consider checking the next url instead of the data for duplication but this is probably good enough.
-		    log('Duplicates detected. Friends length is ' + friends.length + ' and last id is ' + parsedBody.data[parsedBody.data.length-1].id);
-		    duplicates = true;
-		    stopDownloading = true;
+		if (page.length > 0 ) {
+		    apiResults = apiResults.concat(page);
+		    if (typeof progresscb ==='function') progresscb(page);
 		}
 
-		if (duplicates === false) {
-		    log('Adding ' + parsedBody.data.length + ' items to friends list');
-		    friends = friends.concat(parsedBody.data);
-		}
-
-		if (stopDownloading ===false) {
-		    log('Downloading more');
+		if (hasNext && pageCount < maxPages) {
+		    pageCount++;
+		    log('Scheduling download of additional pages of data');
 		    request(parsedBody.paging.next, fetch_more);
 
+		} else {
 
-		    } else {
-			log('Done downloading');
-			cb(friends);
-		    }
-
-
-	    } catch (e) { log('Error parsing server response!'); save(body,'body');save(response,'response'); }
+		    log('Done downloading. Received ' + apiResults.length + ' records. Calling completion callback...');
+		    cb(apiResults);
+		}
 
 
-	} else log('error with server response + ' + error + ' ' +  response.statusCode);
+	    } catch (e) {
+		log('Error parsing server response! ' + e);
+		save(e, 'lasterror');
+		save(body,'lastbody');
+		save(response,'lastresponse'); }
+
+
+	} else if (error){
+	    log('Error fetching data from facebook API: ' + error);
+	    save(error, 'lasterror');
+	} else if (response.statusCode != 200) {
+	    log('Unexpected server response code when fetching data: ' + response.statusCode);
+	    save(response, 'lastresponse');
+	    save(body, 'lastbody');
+	}
 
     }
 
-    log('requesting initial download of friends');
+    log('Scheduling intial fetch of data');
     request(options, fetch_more);
 };
 
-var tryFetch = function () {
-    fetchFriends('me', getAuthToken(), handleFriends);
-};
-
-var fetchPosts = function (user, attributes) {
-
-};
-
-var parseAppsFromPosts = function ( posts ) {
 
 
-};
