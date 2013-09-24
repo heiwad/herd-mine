@@ -1,5 +1,4 @@
-.env
-\#.env\#
+
 
 lib-cov
 *.seed
@@ -20,6 +19,8 @@ npm-debug.log
 # https://devcenter.heroku.com/articles/config-vars
 .env
 
+
+
 # npm packages (debatable)
 node_modules
 
@@ -28,6 +29,8 @@ node_modules
 ### Emacs ###
 *~
 \#*\#
+\#.*
+
 /.emacs.desktop
 /.emacs.desktop.lock
 .elc
@@ -35,6 +38,3 @@ auto-save-list
 tramp
 .\#*
 
-# Org-mode
-.org-id-locations
-*_archive
