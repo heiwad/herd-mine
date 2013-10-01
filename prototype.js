@@ -107,6 +107,7 @@ var fetchFriends = function (cb) {
     var target = 'friends';
     var token = getAuthToken();
     var user = 'me';
+    cb = cb || handleFriends;
 
     var options = facebookQueryBuilder(token, user, target );
     pagedFacebookGet(options, cb);
