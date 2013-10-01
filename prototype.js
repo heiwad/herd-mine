@@ -19,6 +19,18 @@ var save = function (inst, name) {
     if(DEBUG) {global._data[name] = inst;}
 };
 
+var debugHandler = function (error, result) {
+
+    if (error) {
+	log(error);
+	save(result, 'lastresult');
+    } else {
+	log('Operation Completed. Check _data.lastresult for results...');
+	save(result, 'lastresult');
+    }
+
+};
+
 /* Program code starts here */
 
 var getAuthToken = function () {
@@ -58,8 +70,9 @@ var requestHandler = function (error, response, body) {
   }
 };
 
-var handleFriends = function (friends) {
+var handleFriends = function (error, friends) {
 
+    if (error) { log(error); return;}
     if (friends) {
 	var output = '';
 	for (var friend in friends) output += friends[friend].name + ' : ' +friends[friend].id +'\n';
@@ -70,10 +83,25 @@ var handleFriends = function (friends) {
 
 };
 
-var handlePosts = function (posts) {
+var handlePosts = function (error, posts) {
+
+    if (error) {log(error); return; }
+    else {
+	getAppsFromPosts(posts, function (error, apps) {
+	    if (error) log(error);
+	    else log('got apps'); save(apps,'apps');
+	});
+
+    }
+};
+
+var getAppsFromPosts = function (posts, cb) {
+
 
     if (posts) {
 	save(posts, 'posts');
+    } else {
+	cb('Error - post history is blank', null);
     }
 
     var applications = {};
@@ -83,10 +111,12 @@ var handlePosts = function (posts) {
 
 	    var app = post.application;
 
+	    if(!app.id) cb('invalid data format', null); /*application field is missing the id field*/
+
 	    if (applications.hasOwnProperty(app.id)) {
 
 		applications[app.id].count +=1;
-		applications[app.id].firstDate = post.created_time; /*fix this to do a comparison first*/
+		applications[app.id].firstDate = post.created_time; /*Assumes complete post history in reverse order - if that's not the case need to update do do comparisons*/
 
 	    } else {
 		applications[app.id] = {};
@@ -99,7 +129,8 @@ var handlePosts = function (posts) {
 	}
     }
 
-    save(applications,'applications');
+
+    cb(null, applications);
 };
 
 var fetchFriends = function (cb) {
@@ -123,7 +154,20 @@ var fetchPosts = function (cb, user, fields) {
     var target = 'posts';
     var token = getAuthToken();
     var options = facebookQueryBuilder(token, user, target, fields);
-    pagedFacebookGet(options, cb);
+
+
+    var appendUserBeforeCb = function (error, results) {
+	if (error) { cb(error, null); }
+	else if (results) {
+	    results.USER_ID = user;
+	    cb(null, results);
+	    }
+
+    };
+
+
+    pagedFacebookGet(options, appendUserBeforeCb);
+
 
 };
 
@@ -160,7 +204,7 @@ var pagedFacebookGet = function (options, cb, progresscb) {
 		} else {
 
 		    log('Done downloading. Received ' + apiResults.length + ' records. Calling completion callback...');
-		    cb(apiResults);
+		    cb(null, apiResults);
 		}
 
 
@@ -168,16 +212,20 @@ var pagedFacebookGet = function (options, cb, progresscb) {
 		log('Error parsing server response! ' + e);
 		save(e, 'lasterror');
 		save(body,'lastbody');
-		save(response,'lastresponse'); }
+		save(response,'lastresponse');
+		cb(e, apiResults); /*returns error and partial results to callback*/
+	    }
 
 
 	} else if (error){
 	    log('Error fetching data from facebook API: ' + error);
 	    save(error, 'lasterror');
+	    cb(error, null);
 	} else if (response.statusCode != 200) {
 	    log('Unexpected server response code when fetching data: ' + response.statusCode);
 	    save(response, 'lastresponse');
 	    save(body, 'lastbody');
+	    cb(error, null);
 	}
 
     }
@@ -187,4 +235,51 @@ var pagedFacebookGet = function (options, cb, progresscb) {
 };
 
 
+var handleFriendsApps = function ( error, friendsApps) {
 
+    if (error) {
+
+	log(error);
+	return;
+    } else {
+	save(friendsApps, 'friendsApps');
+    }
+
+};
+
+var getFriendsApps = function (token, friends, cb) {
+
+    //operates on a friends list
+    //applies each friend to a curry'ed version of pagedGet/app list
+    //returns final list of apps
+
+    token = token || getAuthToken();
+    friends = friends || _data.friends;
+    cb = cb || handleFriendsApps;
+
+    //need a function that takes in a user, and underscore callback. the function queries facebook for the post history of the user, then filters the posts down to generate a list of apps before calling the underscore callback
+
+    var MAX_DOWNLOADS = 300;
+
+
+    var iterator = function (friend, resultcb) {
+
+	var filterPosts = function (error, posts) {
+
+	    if (error) resultcb(error, posts);
+	    else {
+
+		getAppsFromPosts(posts, resultcb);
+		}
+	};
+
+
+	fetchPosts(filterPosts, friend.id, 'application');
+
+    };
+
+
+    async.mapLimit(friends, MAX_DOWNLOADS, iterator, cb);
+
+
+};
