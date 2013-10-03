@@ -2,14 +2,15 @@
     "name": "herd-mine",
     "version" : "0.0.1",
     "dependencies": {
-	"express": "3.1.x",
-	"mongodb": "1.1.11",
+	"express": "~3.3.4",
+	"mongodb": "*",
+	"ejs": "~0.8.4",
 	"underscore": "*",
 	"request" : "*",
 	"async" : "*"
     },
     "engines": {
-	"node": "0.10.x",
-	"npm": "1.2.x"
+	"node": "0.10.12",
+	"npm": "1.2.30"
     }
 }
