@@ -9,14 +9,15 @@ var url = require('url');
 
 /* Debugging Utilities */
 var _data = {};
-var DEBUG = true;
+var DEBUG = false;
+
 
 var log = function (xx) {
     if(DEBUG) {	console.log("%s at %s", xx, new Date());  }
 };
 
 var save = function (inst, name) {
-    if(DEBUG) {global._data[name] = inst;}
+    if(DEBUG && global.hasOwnProperty('_data')) {global._data[name] = inst;}
 };
 
 var debugHandler = function (error, result) {
@@ -63,7 +64,7 @@ var facebookQueryBuilder = function ( token, user, target, fields) {
 };
 
 
-var fetchFriendsDevices = function (cb, user, token) {
+var fetchFriendsAndDevices = function (cb, user, token) {
 
     token = token || getAuthToken();
     user = user || 'me';
@@ -197,164 +198,4 @@ var pagedFacebookGet = function (options, cb, progresscb, maxPages) {
 
 
 
-//Interactive Test Functions. Consider moving them to the client
-var findAppleAndAndroidOwners = function () {
-
-    for (var x in global._data.lastresult.os.iOS.friends) {
-	if (uu.contains(global._data.lastresult.os.Android.friends, global._data.lastresult.os.iOS.friends[x])){
-	    var bothOs = uu.where(global._data.lastresult.friends, {id: global._data.lastresult.os.iOS.friends[x]});
-	    for (x in bothOs) log(bothOs[x]);
-	}
-
-    }
-};
-
-var findUnknownAppleDeviceOwners = function (friends) {
-
-    for (var ii = 0 ; ii < friends.length; ii ++) {
-	if (friends[ii].hasOwnProperty('devices')) {
-	    for (var jj = 0; jj < friends[ii].devices.length; jj++) {
-		if (friends[ii].devices[jj].hasOwnProperty('os') &&
-		    !friends[ii].devices[jj].hasOwnProperty('hardware') &&
-		    friends[ii].devices[jj].os === 'iOS') {
-		    log(friends[ii].name);
-		    }
-	    }
-	}
-    }
-};
-
-
-/*Old Code. This is too slow to be a viable way to fetch the app list. Rework this to use batched API calls that query for apps directly instead*/
-
-
-var getAppsFromPosts = function (posts, cb) {
-
-
-    if (posts) {
-	save(posts, 'posts');
-    } else {
-	cb('Error - post history is blank', null);
-    }
-
-    var applications = {};
-    for (var i = 0; i < posts.length; i++) {
-	var post = posts[i];
-	if(post.hasOwnProperty('application')) {
-
-	    var app = post.application;
-
-	    if(!app.id) cb('invalid data format', null); /*application field is missing the id field*/
-
-	    if (applications.hasOwnProperty(app.id)) {
-
-		applications[app.id].count +=1;
-		applications[app.id].firstDate = post.created_time; /*Assumes complete post history in reverse order - if that's not the case need to update do do comparisons*/
-
-	    } else {
-		applications[app.id] = {};
-		applications[app.id].name = app.name;
-		applications[app.id].id = app.id;
-		applications[app.id].count = 1;
-		applications[app.id].firstDate = post.created_time;
-		applications[app.id].lastDate = post.created_time;
-	    }
-	}
-    }
-
-
-    cb(null, applications);
-};
-
-var getFriendsApps = function (token, friends, cb) {
-    //this is too slow.it appears to fetch in series. it took 40 minutes. This needs to be rewritten to use the facebook batch api - http://bit.ly/GzM8q9
-
-    token = token || getAuthToken();
-    friends = friends || _data.friends;
-    cb = cb || debugHandler;
-
-    var MAX_DOWNLOADS = 300;
-
-    var iterator = function (friend, resultcb) {
-	var filterPosts = function (error, posts) {
-	    if (error) resultcb(error, posts);
-	    else {
-
-		getAppsFromPosts(posts, resultcb);
-	    }
-	};
-
-	fetchPosts(filterPosts, friend.id, 'application');
-    };
-
-
-    async.mapLimit(friends, MAX_DOWNLOADS, iterator, cb);
-};
-
-
-/*Junk code - these functions aren't ready*/
-
-
-var handleFriends = function (error, friends) {
-
-    if (error) { log(error); return;}
-    if (friends) {
-	var output = '';
-	for (var friend in friends) output += friends[friend].name + ' : ' +friends[friend].id +'\n';
-	log(output);
-	save(friends,'friends');
-	console.log('Got %d friends', friends.length);
-    }
-
-};
-
-var handlePosts = function (error, posts) {
-
-    if (error) {log(error); return; }
-    else {
-	getAppsFromPosts(posts, function (error, apps) {
-	    if (error) log(error);
-	    else log('got apps'); save(apps,'apps');
-	});
-
-    }
-};
-
-
-var fetchFriends = function (cb) {
-
-    var target = 'friends';
-    var token = getAuthToken();
-    var user = 'me';
-    cb = cb || debugHandler;
-
-    var options = facebookQueryBuilder(token, user, target );
-    pagedFacebookGet(options, cb);
-
-};
-
-var fetchPosts = function (cb, user, token, fields) {
-
-    user = user || 'me';
-    cb = cb || debugHandler;
-    fields = fields || 'application';
-
-    var target = 'posts';
-    token = token || getAuthToken();
-    var options = facebookQueryBuilder(token, user, target, fields);
-
-
-    var appendUserBeforeCb = function (error, results) {
-	if (error) { cb(error, null); }
-	else if (results) {
-	    results.USER_ID = user;
-	    cb(null, results);
-	    }
-
-    };
-
-
-    pagedFacebookGet(options, appendUserBeforeCb);
-
-
-};
+exports.friendsAndDevices = fetchFriendsAndDevices;
