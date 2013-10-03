@@ -11,6 +11,7 @@ var url = require('url');
 var _data = {};
 var DEBUG = false;
 
+var OFFLINE = true; /* This is for debugging and development only!!*/
 
 var log = function (xx) {
     if(DEBUG) {	console.log("%s at %s", xx, new Date());  }
@@ -64,7 +65,25 @@ var facebookQueryBuilder = function ( token, user, target, fields) {
 };
 
 
+var fs = require('fs');
+var sample_path = '/home/bumblebee/herd-mine/scratch/friends.json';
+var load_data = function ( path ) {
+
+    var data =  fs.readFileSync(path);
+
+    return JSON.parse(data);
+};
+
+
 var fetchFriendsAndDevices = function (cb, user, token) {
+
+    /*Added offline mode for testing due to shaky internet and poor performance of query*/
+    if (OFFLINE) {
+	cb(null, load_data(sample_path));
+	return;
+    }
+
+
 
     token = token || getAuthToken();
     user = user || 'me';
@@ -82,7 +101,9 @@ var fetchFriendsAndDevices = function (cb, user, token) {
 
 	if (!friend) return output;
 
-		output.friends.push(friend); /*this data i will be needed for rendering client side*/
+	if( !output.friends) output.friends = {};
+
+	output.friends[friend.id] = friend; /*building a dictionary of friends for rendering friend images*/
 
 	if (!friend.devices) return output;
 
@@ -126,7 +147,7 @@ var fetchFriendsAndDevices = function (cb, user, token) {
 
     var reformatData = function (error, data) {
 	save(data, 'friends');
-	var reducedData = uu.reduce(data, reduceDevices, { friends:[], os:{}});
+	var reducedData = uu.reduce(data, reduceDevices, { friends:{}, os:{}});
 	cb(null, reducedData);
     };
 

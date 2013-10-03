@@ -9,18 +9,28 @@
     <h1>What mobile devices do my friends prefer?</h1>
 
 
-
+    <div class="span12">
 	  <% if (data.os) { for (var x in data.os ) { %>
-	  
 
-		  <table class="table user-table">
-		    <thead></thead>
-		    <tbody>
-		      <tr><td>
-			  <h2><%=x %></h2>
-			  <%= data.os[x].count %>
-		</td></tr></tbody></table></div>
-		<% } } %>
+	  <table class="table user-table">
+	    <thead><h2><%= x %></h2></thead>
+	    <tbody>
+	      <tr>
+	      <% var friends = data.os[x].friends;
+	      for (var ii = 0; ii < friends.length; ii++) {
+				    var wraplimit = 32;
+				    if (Math.floor(ii / wraplimit ) === Math.ceil(ii / wraplimit) && ii > 0) { %>
+                  </tr><tr>
+               <% } else { %>
+	       
+	       <td><img src="/img/placeholder.png" width = "32" height="32" alt="<%= data.friends[friends[ii]].name %>"><td>
+
+		  <% } } %>
+
+		  </tr></tbody></table>
+
+	  <% }} %>
+
     </div>
   </body>
 </html>

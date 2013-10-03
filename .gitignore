@@ -24,7 +24,8 @@ npm-debug.log
 # npm packages (debatable)
 node_modules
 
-
+## folder where i keep sample data sets to avoid hitting apis all the time##
+scratch
 
 ### Emacs ###
 *~
