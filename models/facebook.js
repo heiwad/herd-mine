@@ -9,9 +9,9 @@ var url = require('url');
 
 /* Debugging Utilities */
 var _data = {};
-var DEBUG = false;
+var DEBUG = true;
 
-var OFFLINE = true; /* This is for debugging and development only!!*/
+var OFFLINE = false; /* This is for debugging and development only!!*/
 
 var log = function (xx) {
     if(DEBUG) {	console.log("%s at %s", xx, new Date());  }
@@ -77,6 +77,11 @@ var load_data = function ( path ) {
 
 var fetchFriendsAndDevices = function (cb, user, token) {
 
+
+    token = token || getAuthToken();
+    user = user || 'me';
+    cb = cb || debugHandler;
+
     /*Added offline mode for testing due to shaky internet and poor performance of query*/
     if (OFFLINE) {
 	cb(null, load_data(sample_path));
@@ -84,46 +89,58 @@ var fetchFriendsAndDevices = function (cb, user, token) {
     }
 
 
-
-    token = token || getAuthToken();
-    user = user || 'me';
-    cb = cb || debugHandler;
-
     var target = 'friends';
-    var fields = 'id,name,devices,picture.type(normal)';
+    var fields = 'id,name,devices,picture.type(normal),gender,relationship_status,significant_other';
 
     var options = facebookQueryBuilder(token, user, target, fields);
-
-
     var reduceDevices = function (output, friend) {
 
-	/* TODO:May want to eliminate use of 'contains' on the arrays if server load becomes a problem - or allow client side parsing of the data*/
-
 	if (!friend) return output;
-
 	if( !output.friends) output.friends = {};
 
 	output.friends[friend.id] = friend; /*building a dictionary of friends for rendering friend images*/
+	if (!friend.devices) {
 
-	if (!friend.devices) return output;
+		if (!output.os.none) {output.os.none = {count:0, friends : []}; }
+		output.os.none.count +=1;
+		output.os.none.friends.push(friend.id);
+	    return output;
+	}
 
+	var hasAndroid = false;
+	var hasiOS = false;
 
 	for (var i = 0; i < friend.devices.length; i++) {
 
 	    if (friend.devices[i].hasOwnProperty('os')) {
+
 		if (!output.os) output.os = {};
 
 		if (!output.os.hasOwnProperty(friend.devices[i].os)) {
 		    output.os[friend.devices[i].os] = {};
 		    output.os[friend.devices[i].os].count = 0;
 		    output.os[friend.devices[i].os].friends = [];
+		    output.os[friend.devices[i].os].gender = {female:0, male:0};
+		    output.os[friend.devices[i].os].relationship = {'In a relationship':0, 'Married':0, 'Engaged':0, 'Single':0, 'Unknown': 0};
 		}
 
+		//Keep tabs on server CPU load regarding contains queries - consider moving all of this data processing to the view (and potentially the client)
 		if (!uu.contains(output.os[friend.devices[i].os].friends, friend.id)) {
 		    output.os[friend.devices[i].os].count += 1;
 		    output.os[friend.devices[i].os].friends.push(friend.id);
-		}
 
+		    if (friend.gender) {
+			output.os[friend.devices[i].os].gender[friend.gender] +=1;
+		    }
+
+		    if (friend.relationship_status) {
+			output.os[friend.devices[i].os].relationship[friend.relationship_status]+= 1;
+		    } else { output.os[friend.devices[i].os].relationship.Unknown += 1;}
+
+		    if (friend.devices[i].os === 'Android') hasAndroid = true;
+		    else if (friend.devices[i].os ==='iOS') hasiOS = true;
+
+		}
 	    }
 
 	    if (friend.devices[i].hasOwnProperty('hardware')) {
@@ -141,6 +158,12 @@ var fetchFriendsAndDevices = function (cb, user, token) {
 		}
 	    }
 	}
+
+	    if (hasAndroid && hasiOS) {
+		if (!output.os.both) {output.os.both = {count:0, friends : []}; }
+		output.os.both.count +=1;
+		output.os.both.friends.push(friend.id);
+	    }
 
 	return output;
     };

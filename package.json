@@ -7,7 +7,10 @@
 	"ejs": "~0.8.4",
 	"underscore": "*",
 	"request" : "*",
-	"async" : "*"
+	"async" : "*",
+	"passport": "*",
+	"passport-facebook": "*",
+	"connect-flash": "*"
     },
     "engines": {
 	"node": "0.10.12",
