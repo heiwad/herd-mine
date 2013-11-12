@@ -20,9 +20,9 @@ npm-debug.log
 .env
 
 
-
+#checking in node modules to version control due to http://stackoverflow.com/a/17417137/2904811
 # npm packages (debatable)
-node_modules
+#node_modules
 
 ## folder where i keep sample data sets to avoid hitting apis all the time##
 scratch

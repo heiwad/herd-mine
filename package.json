@@ -10,7 +10,9 @@
 	"async" : "*",
 	"passport": "*",
 	"passport-facebook": "*",
-	"connect-flash": "*"
+	"passport-local": "*",
+	"connect-flash": "*",
+	"bcrypt": "*"
     },
     "engines": {
 	"node": "0.10.12",
